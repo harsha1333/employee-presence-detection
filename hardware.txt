@@ -1,0 +1,77 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include "ThingSpeak.h"
+
+// Replace with your network credentials
+const char* ssid = "Wokwi-GUEST";            
+const char* password = "";    
+
+const int led = 13;            // LED is connected to ESP32 D13
+const int pirdata = 15;        // PIR D is connected to D15
+int pirstate = LOW;            // assuming no motion
+int value = 0;                 // to read pin status
+bool personPresent = false;    // flag to indicate person presence
+
+WiFiClient client;
+const unsigned long myChannelNumber = 2602322;
+const char* myApiKey = "PNRQ1839VO27U33U";
+
+void connectToWiFi() {
+  Serial.print("Connecting to WiFi...");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
+  }
+  Serial.println("Connected to WiFi");
+  Serial.println("Local IP: " + String(WiFi.localIP()));
+}
+
+void setup() {
+  pinMode(led, OUTPUT);     // Led as output
+  pinMode(pirdata, INPUT);  // PIR sensor as input
+
+  Serial.begin(115200);
+  connectToWiFi();
+  ThingSpeak.begin(client);
+}
+
+void loop() {
+  value = digitalRead(pirdata);  
+  if (value == HIGH) {            // motion detected
+    digitalWrite(led, HIGH);  
+    if (pirstate == LOW) {
+      Serial.println("Motion detected!");
+      pirstate = HIGH;
+      personPresent = true;
+    }
+  } else {
+    digitalWrite(led, LOW); 
+    if (pirstate == HIGH) {
+      Serial.println("Motion ended!");
+      pirstate = LOW;
+      personPresent = false;
+    }
+  }
+
+  // Send presence data to ThingSpeak
+  ThingSpeak.setField(1, personPresent ? 1 : 0);
+
+  int x = ThingSpeak.writeFields(myChannelNumber, myApiKey);
+
+  if (x == 200) {
+    Serial.println("Data pushed successfully");
+  } else {
+    Serial.println("Push error: " + String(x));
+  }
+
+  // Check if person is present or absent and print status
+  if (personPresent) {
+    Serial.println("Person is present.");
+  } else {
+    Serial.println("Person is absent.");
+  }
+
+  Serial.println("---");
+  delay(15000); // Delay for 10 seconds for better readability of serial output
+}
